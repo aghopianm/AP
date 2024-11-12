@@ -51,9 +51,9 @@ def data_load_from_csv_to_json_and_clean():
     component_codes_dataframe['Code'] = component_codes_dataframe['Code'].str.replace('_', '', 
                                                                                       regex=False)
     
-    activity_logs_dataframe.to_json("activity_logs.json", orient='records', lines=False, indent=4)
+    """activity_logs_dataframe.to_json("activity_logs.json", orient='records', lines=False, indent=4)
     component_codes_dataframe.to_json("component_codes.json", orient='records', lines=False, indent=4)
-    user_log_dataframe.to_json("user_logs.json", orient='records', lines=False, indent=4)
+    user_log_dataframe.to_json("user_logs.json", orient='records', lines=False, indent=4)"""
 
     return activity_logs_dataframe, component_codes_dataframe, user_log_dataframe
 
@@ -89,13 +89,16 @@ def merge_data_to_one_frame(activity_logs_dataframe, component_codes_dataframe, 
 fully_merged_dataset = merge_data_to_one_frame(activity_logs_dataframe, component_codes_dataframe, user_log_dataframe)
 print(fully_merged_dataset.head())
 
-#Task 3, reshape the data using pivot, I am reshaping in advance due to the 
+#Task 4 and 5, reshape the data using pivot, I am reshaping in advance due to the 
 #statistical analysis that will be required in the further tasks.
 
 def reshape(fully_merged_dataset):
     #First, string slice to get the month.
     fully_merged_dataset['Month'] = fully_merged_dataset['Date'].str[3:5]
 
+    #interaction_count is Task 5, this new column counts each interaction for each user_Id in each
+    #month, creating new columns like Component_10 (October's count for that unique component)
+    #This counts for how many times that same component has come up so far for that user_ID
     interaction_count = fully_merged_dataset.groupby(['User_ID', 
                                                      'Component', 'Month']
                                                      ).size().reset_index(name='Interaction_Count')
@@ -114,8 +117,7 @@ def reshape(fully_merged_dataset):
     reshaped_data.reset_index(inplace=True)
 
     # Display the reshaped data
-    print(reshaped_data.head())
-    
+    print(reshaped_data.shape)
     return reshaped_data
 
 reshape(fully_merged_dataset)
