@@ -36,11 +36,11 @@ def data_load_from_csv_to_json_and_clean():
     activity_logs_dataframe.fillna({'Component': 'Unknown', 'Action': 'Unknown', 'Target': 'Unknown', 'User Full Name *Anonymized': 0}, inplace=True)
     activity_logs_dataframe['Target'] = activity_logs_dataframe['Target'].str.replace('_', '', regex=False)
     activity_logs_dataframe['Component'] = activity_logs_dataframe['Component'].str.replace('_', '', regex=False)
-    activity_logs_dataframe.rename(columns={'User Full Name *Anonymized': 'User_ID'}, inplace=True)
+    """activity_logs_dataframe.rename(columns={'User Full Name *Anonymized': 'User_ID'}, inplace=True)
     # Filter out "System" and "Folder" components
     activity_logs_dataframe = activity_logs_dataframe[~activity_logs_dataframe['Component'].isin(['System', 'Folder'])]
 
-    user_log_dataframe.rename(columns={'User Full Name *Anonymized': 'User_ID'}, inplace=True)
+    user_log_dataframe.rename(columns={'User Full Name *Anonymized': 'User_ID'}, inplace=True)"""
     user_log_dataframe['Date'] = pd.to_datetime(user_log_dataframe['Date'], format='%d/%m/%Y %H:%M', errors='coerce')
     user_log_dataframe['Date'] = user_log_dataframe['Date'].dt.strftime('%d/%m/%Y')
     user_log_dataframe['Date'].fillna('25/11/2023', inplace=True)
@@ -52,11 +52,25 @@ def data_load_from_csv_to_json_and_clean():
 
     messagebox.showinfo("Info", "Data loaded and cleaned successfully.")
 
+def remove_and_rename():
+    global activity_logs_dataframe, user_log_dataframe, component_codes_dataframe
+    if activity_logs_dataframe is None or component_codes_dataframe is None or user_log_dataframe is None:
+        messagebox.showerror("Error", "Please load and clean the data first.")
+        return
+    #Remove task:
+    # Filter out "System" and "Folder" components
+    activity_logs_dataframe = activity_logs_dataframe[~activity_logs_dataframe['Component'].isin(['System', 'Folder'])]
+    #Rename task:
+    activity_logs_dataframe.rename(columns={'User Full Name *Anonymized': 'User_ID'}, inplace=True)
+    user_log_dataframe.rename(columns={'User Full Name *Anonymized': 'User_ID'}, inplace=True)
+
+    messagebox.showinfo("Info", "Thank you, you have removed and renamed successsfully")
+
 # Function to merge data
 def merge_data():
     global fully_merged_dataset
     if activity_logs_dataframe is None or component_codes_dataframe is None or user_log_dataframe is None:
-        messagebox.showerror("Error", "Please load and clean the data first.")
+        messagebox.showerror("Error", "Please load and clean the data first, and remove&rename.")
         return
     messagebox.showinfo("Info", "This process may take up to 5-10 minutes. Please wait.")
     first_merge = pd.merge(activity_logs_dataframe, component_codes_dataframe, on='Component', how='left')
@@ -401,6 +415,10 @@ root.title("Data Processing GUI")
 # Create buttons for each step
 load_clean_button = tk.Button(root, text="Load and Clean Data", command=data_load_from_csv_to_json_and_clean)
 load_clean_button.pack(pady=10)
+
+# Create buttons for each step
+remove_and_rename_button = tk.Button(root, text="Remove and rename", command=remove_and_rename)
+remove_and_rename_button.pack(pady=10)
 
 merge_button = tk.Button(root, text="Merge Data", command=merge_data)
 merge_button.pack(pady=10)
