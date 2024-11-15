@@ -168,13 +168,6 @@ def save_prepared_data():
 #go through the whole process of cleaning, merging, loading etc from the csv every time if you have
 #a prepared dataset.
 
-    """def load_large_json(filename):
-    #Loads a large JSON array file and returns a concatenated DataFrame
-    # Load the file as a JSON array (no need for chunksize)
-    data = pd.read_json(filename, orient="records", lines=False)
-    print(f"Loaded {len(data)} records from {filename}")
-    return data"""
-
     # MAYBE HERE I WILL COEM BACK TO IT
 def load_large_json(filename, chunk_size=1000):
 
@@ -235,7 +228,7 @@ def load_large_json(filename, chunk_size=1000):
 def load_prepared_data():
     global fully_merged_dataset, reshaped_data
     try:
-        messagebox.showinfo("Info", "This process will take a VERY LONG TIME - Please wait up to 20 mins")
+        messagebox.showinfo("Info", "This process will take a VERY LONG TIME - Please wait up to 60 mins depending on your hardware")
         
         # Load the fully merged dataset with a larger chunk size
         print("Loading fully merged dataset...")
@@ -250,36 +243,9 @@ def load_prepared_data():
     except Exception as e:
         messagebox.showerror("Error", f"Error loading prepared data: {str(e)}")
         print(f"Detailed error: {str(e)}")
-"""def load_large_json(filename, chunk_size=1000):
-    
-    data_chunks = []
-    with open(filename, 'r') as f:
-        # Remove the starting and ending brackets to treat it as a lines JSON
-        next(f)  # Skip the initial "["
-        for chunk in pd.read_json(f, orient="records", lines=True, chunksize=chunk_size):
-            data_chunks.append(chunk)
-            print(f"Loaded chunk with {len(chunk)} records from {filename}")
-    return pd.concat(data_chunks, ignore_index=True)
-
-def load_prepared_data():
-    global fully_merged_dataset, reshaped_data
-    file_paths = filedialog.askopenfilenames(title="Select JSON files", filetypes=[("JSON files", "*.json")])
-    if len(file_paths) != 2:
-        messagebox.showerror("Error", "Please select exactly two JSON files.")
-        return
-    messagebox.showinfo("Info", "This process will take a VERY LONG TIME - Please wait up to 20 mins")
-    try:
-        fully_merged_dataset = load_large_json("fully_merged_dataset.json")
-        reshaped_data = load_large_json("reshaped_data.json", chunk_size=10)
-        messagebox.showinfo("Info", "Prepared data loaded successfully.")
-    except FileNotFoundError:
-        messagebox.showerror("Error", "Prepared data files not found.")"""
 
 #Task 6
 def output_statistics():
-    """
-    Output monthly and semester-level statistics for key components.
-    """
     global reshaped_data
     
     if reshaped_data is None:
@@ -397,62 +363,6 @@ def plot_bar_graphs():
             plt.tight_layout()
             plt.show()
 
-"""#HEATMAPS/CORRELATION
-def plot_component_correlation():
-    global reshaped_data
-
-    if reshaped_data is None:
-        messagebox.showerror("Error", "Please reshape the data first.")
-        return
-
-    # Make a copy of reshaped_data to avoid modifying the original
-    correlation_data = reshaped_data.copy()
-
-    # Flatten column names to make component-month pairs easier to identify
-    correlation_data.columns = ['_'.join(map(str, col)) for col in correlation_data.columns]
-    
-    # Select columns for components of interest only
-    components_of_interest = ['Assignment', 'Quiz', 'Lecture', 'Book', 'Project', 'Course']
-    relevant_columns = [col for col in correlation_data.columns if any(comp in col for comp in components_of_interest)]
-    
-    # Filter the reshaped data to include only relevant component-month columns
-    correlation_data = correlation_data[relevant_columns]
-    
-    # Calculate the correlation matrix for the selected components
-    correlation_matrix = correlation_data.corr()
-
-    # Plot the correlation matrix as a heatmap
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', center=0, linewidths=0.5)
-    plt.title("Correlation between Components based on User Interactions")
-    plt.xlabel("Components")
-    plt.ylabel("Components")
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    plt.show()
-
-#VISUAL ONLY HEATMAP
-def plot_user_component_interactions():
-    global reshaped_data
-
-    if reshaped_data is None:
-        messagebox.showerror("Error", "Please reshape the data first.")
-        return
-
-    # Flatten the column names for easier access
-    reshaped_data.columns = ['_'.join(map(str, col)) for col in reshaped_data.columns]
-
-    # Prepare the data for the heatmap
-    interaction_data = reshaped_data.copy()
-
-    # Create the heatmap
-    plt.figure(figsize=(12, 8))
-    sns.heatmap(interaction_data, annot=False, cmap='YlGnBu', linewidths=0.5)
-    plt.title("User Interactions with Components")
-    plt.xlabel("Component_Month")
-    plt.ylabel("User_ID")
-    plt.show()"""
-
 #Task 7 seond half, calculating and plotting correlation
 def plot_user_component_correlation():
     global reshaped_data
@@ -514,81 +424,6 @@ def plot_user_component_correlation():
 
     # Display a message box to inform the user that results have been printed to the console
     messagebox.showinfo("Info", "Correlation results with User_ID have been printed to the console, please check.")
-
-
-"""def plot_user_component_interaction_correlation():
-    global reshaped_data
-
-    if reshaped_data is None:
-        messagebox.showerror("Error", "Please reshape the data first.")
-        return
-
-    # Make a copy of reshaped_data to avoid modifying the original
-    correlation_data = reshaped_data.copy()
-
-    # Reset index to make User_ID a column (if it's in the index)
-    if 'User_ID' in correlation_data.index.names:
-        correlation_data = correlation_data.reset_index()
-    
-    # If User_ID is not in columns or index, we can't proceed
-    if 'User_ID' not in correlation_data.columns:
-        messagebox.showerror("Error", "User_ID column not found in the data.")
-        return
-
-    # Flatten columns for easier access (excluding User_ID)
-    correlation_data.columns = ['_'.join(map(str, col)) if isinstance(col, tuple) else col for col in correlation_data.columns]
-
-    # Extract columns related to components (exclude 'User_ID')
-    component_columns = [col for col in correlation_data.columns if col != 'User_ID']
-    
-    # Get user_id data
-    user_ids = correlation_data['User_ID']
-
-    # Initialize dictionary to store results
-    correlation_results = {}
-
-    for component in component_columns:
-        try:
-            # Convert data to numeric, replacing non-numeric values with NaN
-            component_data = pd.to_numeric(correlation_data[component], errors='coerce')
-            user_id_data = pd.to_numeric(user_ids, errors='coerce')
-            
-            # Remove any NaN values
-            mask = ~(np.isnan(component_data) | np.isnan(user_id_data))
-            component_data = component_data[mask]
-            user_id_data = user_id_data[mask]
-            
-            if len(component_data) > 1:  # Need at least 2 points for correlation
-                # Pearson correlation with User_ID
-                pearson_corr, pearson_p = pearsonr(component_data, user_id_data)
-
-                # Spearman correlation with User_ID
-                spearman_corr, spearman_p = spearmanr(component_data, user_id_data)
-
-                # Save correlation results
-                correlation_results[component] = {
-                    'Pearson Correlation': pearson_corr,
-                    'Pearson p-value': pearson_p,
-                    'Spearman Correlation': spearman_corr,
-                    'Spearman p-value': spearman_p
-                }
-            else:
-                print(f"Insufficient data points for correlation calculation in {component}")
-                
-        except Exception as e:
-            print(f"Error calculating correlation for {component}: {str(e)}")
-            continue
-
-    # Print correlation results to the console
-    print("\nCorrelation Results:")
-    for component, result in correlation_results.items():
-        print(f"\nComponent: {component}")
-        print(f"Pearson Correlation: {result['Pearson Correlation']:.4f} (p-value: {result['Pearson p-value']:.4f})")
-        print(f"Spearman Correlation: {result['Spearman Correlation']:.4f} (p-value: {result['Spearman p-value']:.4f})")
-
-    # Display message box to inform the user that results have been printed to the console
-    messagebox.showinfo("Info", "Correlation results have been printed to the console, please check.")"""
-
 
 # Setup Tkinter GUI
 root = tk.Tk()
