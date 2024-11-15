@@ -2,13 +2,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 from scipy.stats import pearsonr, spearmanr
-import json
 
 sns.set(style="whitegrid")
 
-# Initialize main data variables
+#Main variables that are used through the programme are initialised here at the top. 
+#I have had to do this due to scope issues. 
 activity_logs_dataframe = None
 component_codes_dataframe = None
 user_log_dataframe = None
@@ -117,37 +117,38 @@ def reshape_data():
     messagebox.showinfo("Info", "Data reshaped successfully.")
 
 def save_large_json(dataframe, filename, chunk_size=1000):
-    # Open a new JSON file for writing
+    #json files opened for writing.
     with open(filename, 'w') as f:
-        # Start the JSON array
+        #initiate array.
         f.write("[\n")
         
-        # Loop through the dataframe in chunks
+        #dataframe looped through in chunks ( size can be given by me here)
         for i in range(0, len(dataframe), chunk_size):
-            # Extract a chunk of data
+            #get chunk
             chunk = dataframe.iloc[i:i + chunk_size]
-            # Convert the chunk to JSON format
+            #pass to a json
             chunk_json = chunk.to_json(orient="records", lines=False)
-            # Write the chunk to the file
+            #then take the json to a file.
             f.write(chunk_json[1:-1])  # Exclude the outer brackets for each chunk
             
-            # Add a comma between chunks, except after the last chunk
+            # addcomma between chunks. except after the last chunk to avoid erros.
             if i + chunk_size < len(dataframe):
                 f.write(",\n")
-            # Print progress to the console
+            #progress printed to console so I dont think its not working.
             print(f"Printed chunk {i // chunk_size + 1} for {filename}")
 
-        # End the JSON array
+        #close array. 
         f.write("\n]")
 
+#purpose of this function is a helper function specifically for the reshaped data as it was throwing
+#errors when I used savelargejson() on the reshaped data..
 def save_reshaped_data():
-    """Special function to save reshaped data with a smaller chunk size."""
     global reshaped_data
     if reshaped_data is None:
         messagebox.showerror("Error", "Data not yet reshaped.")
         return
     
-    # Using a smaller chunk size for reshaped data
+    #reshaped data was throwing erros when using larger chunk sizes so I have put a smaller size. 
     save_large_json(reshaped_data, "reshaped_data.json", chunk_size=10)
     print("Reshaped data saved successfully.")
 
@@ -168,9 +169,9 @@ def save_prepared_data():
 #go through the whole process of cleaning, merging, loading etc from the csv every time if you have
 #a prepared dataset.
 
-    # MAYBE HERE I WILL COEM BACK TO IT
 def load_large_json(filename, chunk_size=1000):
 
+    #generator function within the load large json. this handles chunk generation 
     def json_chunk_generator(file_obj, chunk_size):
         buffer = []
         in_array = False
@@ -218,6 +219,10 @@ def load_large_json(filename, chunk_size=1000):
             raise ValueError("No valid data chunks were loaded")
             
         result = pd.concat(data_chunks, ignore_index=True)
+        #I will get 50,000 at a time from my pre existing JSON, this takes a very long time on my
+        #m1 macbook air and I am not sure if this is the best way to programme this.
+        #perhaps a solution moving forward could be using threads for IO operaitons, there is
+        #lots of issues in this programme with IO that could be optimised through threading.
         print(f"Successfully loaded total of {len(result)} records from {filename}")
         return result
         
@@ -230,11 +235,11 @@ def load_prepared_data():
     try:
         messagebox.showinfo("Info", "This process will take a VERY LONG TIME - Please wait up to 60 mins depending on your hardware")
         
-        # Load the fully merged dataset with a larger chunk size
+        #Load the fully merged dataset with a larger chunk size
         print("Loading fully merged dataset...")
         fully_merged_dataset = load_large_json("fully_merged_dataset.json", chunk_size=500)
         
-        # Load the reshaped data with a smaller chunk size since it might be wider
+        #Load the reshaped data with a smaller chunk size since it is much, much wider.
         print("Loading reshaped data...")
         reshaped_data = load_large_json("reshaped_data.json", chunk_size=100)
         
@@ -252,13 +257,14 @@ def output_statistics():
         messagebox.showerror("Error", "Please reshape the data first.")
         return
 
-    # Make a copy of reshaped_data to avoid modifying the original for visualization
+    #throughout my programme I will keep making copyies to avoid messing with the global reshaped data
+    #variable as I had issues when flattening columns from one function to another.
     manipulated_data = reshaped_data.copy()
 
-    # Components of interest
+    # Components of interest that I need to extract.
     components_of_interest = ['Quiz', 'Lecture', 'Assignment', 'Attendance', 'Survey']
     
-    # Flatten columns to access them easily in the copy (not modifying the original reshaped_data)
+    # Flatten columns to access them easily in the copied data.
     manipulated_data.columns = ['_'.join(map(str, col)) if isinstance(col, tuple) else col for col in manipulated_data.columns]
 
     # Get columns that contain component-month pairs
@@ -271,45 +277,47 @@ def output_statistics():
         month_columns = [col for col in relevant_columns if f'_{month}' in col]
         month_data = manipulated_data[month_columns]
 
-        # Initialize dictionary for month stats
         monthly_statistics[month] = {}
         
-        # Mean for this month
+        #mean for each month
         monthly_statistics[month]['Mean'] = month_data.mean().round(2)
         
-        # Median for this month
+        #median for each month
         monthly_statistics[month]['Median'] = month_data.median().to_dict()
         
-        # Mode for this month (returning the first mode for each component)
+        #first mode returned for each month with [0]
         mode_values = month_data.mode()
         if not mode_values.empty:
-            monthly_statistics[month]['Mode'] = mode_values.iloc[0].to_dict()  # Mode per component
+            monthly_statistics[month]['Mode'] = mode_values.iloc[0].to_dict()  #each mode for component.
         else:
-            monthly_statistics[month]['Mode'] = 'No mode'  # Handle the case where there's no mode
-
+            #Handle the case where there's no mode as i think thats more useful than returning
+            #nan or 0 to the console.
+            monthly_statistics[month]['Mode'] = 'No mode'  
     #Task 6b
-    # Semester statistics (September to December combined)
+    #Semester statistics 09-12, september to december.
     semester_statistics = {}
     for component in components_of_interest:
-        # Filter columns for the current component across all months
+        # get components across every single month
         component_columns = [col for col in relevant_columns if col.startswith(component)]
         
-        # Select the columns for the current component
         component_data = manipulated_data[component_columns]
         
-        # Calculate Mean for the entire semester (across all months)
+        #all month means calculated.
         semester_statistics[component] = {}
         semester_statistics[component]['Mean'] = component_data.mean().mean()  # Mean of all months combined
         
-        # Calculate Median for the entire semester (across all months)
-        semester_statistics[component]['Median'] = component_data.median().median()  # Median of all months combined
+        #medians calculated across all months. (i.e: i am getting the median of medians, mean of means etc)
+        semester_statistics[component]['Median'] = component_data.median().median()  #Median of all months combined
         
-        # Calculate Mode for the entire semester (across all months)
+        #all  month modes.
         # Combine data from all months for the component and calculate mode
-        combined_data = component_data.stack()  # Stack all the month data into a single column
+        # Stack all the month data into a single column, I did it this way as I did not want to have many
+        #modes simply for the semester, it didnt really make sense having individual month modes for the
+        #semester as this was what I was getting when I coded initially.
+        combined_data = component_data.stack() 
         mode_values = combined_data.mode()
         if not mode_values.empty:
-            semester_statistics[component]['Mode'] = mode_values.iloc[0]  # First mode value for the component
+            semester_statistics[component]['Mode'] = mode_values.iloc[0] 
         else:
             semester_statistics[component]['Mode'] = 'No mode'  # Handle the case where there's no mode
     
@@ -326,7 +334,7 @@ def output_statistics():
     # Print statistics to the console
     print(stats_message)
 
-    # Display a message box to inform the user that statistics have been printed to the console
+    #keep me updated.
     messagebox.showinfo("Info", "Statistics have been printed to the console, please check.")
 
 #Task 7 - the first part of the task, plotting the graphs
@@ -406,29 +414,79 @@ def plot_user_component_correlation():
         }
 
     
-    # Print correlation results to the console
+    #correlation results printed to menu, optional I could have saved this to a file for future readability
     print("Correlation Results with User_ID:")
     for component, result in correlation_results.items():
         print(f"\nComponent: {component}")
         print(f"Pearson Correlation: {result['Pearson Correlation']} (p-value: {result['Pearson p-value']})")
         print(f"Spearman Correlation: {result['Spearman Correlation']} (p-value: {result['Spearman p-value']})")
 
-        # Convert the correlation results into a DataFrame for easy plotting
+        #i will plot using a dataframe so results must be converted.
     correlation_df = pd.DataFrame(correlation_results).T
 
-    # Create a heatmap of the Pearson and Spearman correlations
+    #heatmap for both pearson and spearman correlation.
     plt.figure(figsize=(10, 6))
     sns.heatmap(correlation_df[['Pearson Correlation', 'Spearman Correlation']], annot=False, cmap='coolwarm', center=0)
     plt.title("Correlation of Components with User_ID")
     plt.show()
 
-    # Display a message box to inform the user that results have been printed to the console
     messagebox.showinfo("Info", "Correlation results with User_ID have been printed to the console, please check.")
 
+#POTENTIAL FINAL SOLUTION FOR GUI. 
 # Setup Tkinter GUI
 root = tk.Tk()
-root.title("Data Processing GUI")
+root.title("GUI for my prototype application")
 
+#Main menu bar
+menubar = tk.Menu(root)
+root.config(menu=menubar)
+
+"""#OPTIONAL STYLING
+style = ttk.Style()
+style.configure(
+    "TLabel",  # Default style for all ttk.Label widgets
+    background="#e6f3ff",
+    foreground="#003366",
+    font=("Arial", 12),
+    padding=10
+)"""
+
+#All things data processing in one menu
+data_processing_menu = tk.Menu(menubar, tearoff=0)
+menubar.add_cascade(label="Data Preprocessing", menu=data_processing_menu)
+data_processing_menu.add_command(label="Load and Clean Data", command=data_load_from_csv_to_json_and_clean)
+data_processing_menu.add_command(label="Remove and Rename", command=remove_and_rename)
+data_processing_menu.add_command(label="Merge Data", command=merge_data)
+data_processing_menu.add_command(label="Reshape Data", command=reshape_data)
+
+#data storage menu
+data_storage_menu = tk.Menu(menubar, tearoff=0)
+menubar.add_cascade(label="Data Storage and Loading", menu=data_storage_menu)
+data_storage_menu.add_command(label="Save Cleaned Data to JSON (individual files)", command=save_cleaned_data)
+data_storage_menu.add_command(label="Save Prepared Data to JSON (one big JSON file)", command=save_prepared_data)
+data_storage_menu.add_command(label="Load Prepared Data from JSON (merged and reshaped)", command=load_prepared_data)
+
+#statistics and visualiation menu
+visualization_menu = tk.Menu(menubar, tearoff=0)
+menubar.add_cascade(label="Statistics & Visualization", menu=visualization_menu)
+visualization_menu.add_command(label="Output Statistics", command=output_statistics)
+visualization_menu.add_command(label="Component Interactions Bar Graphs", command=plot_bar_graphs)
+visualization_menu.add_command(label="User-Component Correlation Heatmap/Correlation", command=plot_user_component_correlation)
+
+#status bar at the bottom, not sure how much value this adds but it looks good.
+status_bar = ttk.Label(root, text="Ready", relief=tk.SUNKEN, anchor=tk.W)
+status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+
+#instruction and welcome menu
+welcome_label = ttk.Label(root, text="Prototype application, welcome!\n\nPlease use the menus above to:\n1. Process your data\n2. Save/Load data\n3. Visualize results and output statistics", justify=tk.CENTER, padding=20)
+welcome_label.pack(expand=True)
+
+root.mainloop()
+
+#POTENTIALLY USE THIS GUI INSTEAD
+"""# Setup Tkinter GUI
+root = tk.Tk()
+root.title("Data Processing GUI")
 # Create buttons for each step
 load_clean_button = tk.Button(root, text="Load and Clean Data", command=data_load_from_csv_to_json_and_clean)
 load_clean_button.pack(pady=10)
@@ -465,4 +523,4 @@ plot_button_separate.pack(pady=10)
 plot_button_heatmap = tk.Button(root, text="Plot User-Component Interactions", command=plot_user_component_correlation)
 plot_button_heatmap.pack(pady=10)
 
-root.mainloop()
+root.mainloop()"""
