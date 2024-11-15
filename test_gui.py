@@ -1,10 +1,10 @@
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from scipy.stats import pearsonr, spearmanr
+import json
 
 sns.set(style="whitegrid")
 
@@ -23,35 +23,49 @@ def data_load_from_csv_to_json_and_clean():
         messagebox.showerror("Error", "Please select exactly three CSV files.")
         return
 
-    # Loading CSVs
+    #Load all CSVs to a pandas dataframe, pandas > np in this case as we are going to have to
+    #heavily manipulate the dataset and reshape it.
     activity_logs_dataframe = pd.read_csv(file_paths[0])
     component_codes_dataframe = pd.read_csv(file_paths[1])
     user_log_dataframe = pd.read_csv(file_paths[2])
 
-    # Cleaning data
+    #Strip whitespace
     activity_logs_dataframe.columns = activity_logs_dataframe.columns.str.strip()
     component_codes_dataframe.columns = component_codes_dataframe.columns.str.strip()
     user_log_dataframe.columns = user_log_dataframe.columns.str.strip()
 
+    #Clean activity logs first
     activity_logs_dataframe.fillna({'Component': 'Unknown', 'Action': 'Unknown', 'Target': 'Unknown', 'User Full Name *Anonymized': 0}, inplace=True)
     activity_logs_dataframe['Target'] = activity_logs_dataframe['Target'].str.replace('_', '', regex=False)
     activity_logs_dataframe['Component'] = activity_logs_dataframe['Component'].str.replace('_', '', regex=False)
-    """activity_logs_dataframe.rename(columns={'User Full Name *Anonymized': 'User_ID'}, inplace=True)
-    # Filter out "System" and "Folder" components
-    activity_logs_dataframe = activity_logs_dataframe[~activity_logs_dataframe['Component'].isin(['System', 'Folder'])]
-
-    user_log_dataframe.rename(columns={'User Full Name *Anonymized': 'User_ID'}, inplace=True)"""
+    
+    #Clean user logs next
     user_log_dataframe['Date'] = pd.to_datetime(user_log_dataframe['Date'], format='%d/%m/%Y %H:%M', errors='coerce')
     user_log_dataframe['Date'] = user_log_dataframe['Date'].dt.strftime('%d/%m/%Y')
     user_log_dataframe['Date'].fillna('25/11/2023', inplace=True)
     user_log_dataframe['Time'] = user_log_dataframe['Time'].str.strip()
     user_log_dataframe['Time'].fillna('00:00:00', inplace=True)
 
+    #Clean component codes last
     component_codes_dataframe['Component'] = component_codes_dataframe['Component'].str.replace('_', '', regex=False)
     component_codes_dataframe['Code'] = component_codes_dataframe['Code'].str.replace('_', '', regex=False)
 
     messagebox.showinfo("Info", "Data loaded and cleaned successfully.")
 
+#This function saves the three cleaned dataframes to three seperate JSON files.
+def save_cleaned_data():
+    global activity_logs_dataframe, component_codes_dataframe, user_log_dataframe
+    if activity_logs_dataframe is None or component_codes_dataframe is None or user_log_dataframe is None:
+        messagebox.showerror("Error", "Data not loaded. Please load and clean data first.")
+        return
+
+    activity_logs_dataframe.to_json("activity_logs_cleaned.json", orient="records", lines=False, indent=4)
+    component_codes_dataframe.to_json("component_codes_cleaned.json", orient="records", lines=False, indent=4)
+    user_log_dataframe.to_json("user_log_cleaned.json", orient="records", lines=False, indent=4)
+    messagebox.showinfo("Info", "Cleaned data saved as JSON files.")
+
+#Data manipulation and outputs tasks:
+#Task 1 and 2
 def remove_and_rename():
     global activity_logs_dataframe, user_log_dataframe, component_codes_dataframe
     if activity_logs_dataframe is None or component_codes_dataframe is None or user_log_dataframe is None:
@@ -66,6 +80,7 @@ def remove_and_rename():
 
     messagebox.showinfo("Info", "Thank you, you have removed and renamed successsfully")
 
+#Task 3 
 # Function to merge data
 def merge_data():
     global fully_merged_dataset
@@ -77,6 +92,7 @@ def merge_data():
     fully_merged_dataset = pd.merge(first_merge, user_log_dataframe, on='User_ID', how='left')
     messagebox.showinfo("Info", "Data merged successfully.")
 
+#Task 4
 # Function to reshape data
 def reshape_data():
     global reshaped_data
@@ -85,7 +101,9 @@ def reshape_data():
         return
     messagebox.showinfo("Info", "This process may take up to 5-10 minutes. Please wait.")
     
+    #I am string slicing here to get the month.
     fully_merged_dataset['Month'] = fully_merged_dataset['Date'].str[3:5]
+    #Task 5 of counting, interaction count = task 5
     interaction_count = fully_merged_dataset.groupby(['User_ID', 'Component', 'Month']).size().reset_index(name='Interaction_Count')
     reshaped_data = pd.pivot_table(
         interaction_count,
@@ -98,6 +116,166 @@ def reshape_data():
 
     messagebox.showinfo("Info", "Data reshaped successfully.")
 
+def save_large_json(dataframe, filename, chunk_size=1000):
+    # Open a new JSON file for writing
+    with open(filename, 'w') as f:
+        # Start the JSON array
+        f.write("[\n")
+        
+        # Loop through the dataframe in chunks
+        for i in range(0, len(dataframe), chunk_size):
+            # Extract a chunk of data
+            chunk = dataframe.iloc[i:i + chunk_size]
+            # Convert the chunk to JSON format
+            chunk_json = chunk.to_json(orient="records", lines=False)
+            # Write the chunk to the file
+            f.write(chunk_json[1:-1])  # Exclude the outer brackets for each chunk
+            
+            # Add a comma between chunks, except after the last chunk
+            if i + chunk_size < len(dataframe):
+                f.write(",\n")
+            # Print progress to the console
+            print(f"Printed chunk {i // chunk_size + 1} for {filename}")
+
+        # End the JSON array
+        f.write("\n]")
+
+def save_reshaped_data():
+    """Special function to save reshaped data with a smaller chunk size."""
+    global reshaped_data
+    if reshaped_data is None:
+        messagebox.showerror("Error", "Data not yet reshaped.")
+        return
+    
+    # Using a smaller chunk size for reshaped data
+    save_large_json(reshaped_data, "reshaped_data.json", chunk_size=10)
+    print("Reshaped data saved successfully.")
+
+#Function to save the fully merged and reshaped data to seperate json files for future use and to
+#maintain the programme moving forward.
+def save_prepared_data():
+    global fully_merged_dataset, reshaped_data
+    if fully_merged_dataset is None or reshaped_data is None:
+        messagebox.showerror("Error", "Data not yet merged and reshaped.")
+        return
+    messagebox.showinfo("Info", "This process will take a VERY LONG TIME - Please wait up to 20 mins")
+    save_large_json(fully_merged_dataset, "fully_merged_dataset.json")
+    print("Complete, now I will do the reshaped data.")
+    save_reshaped_data()
+    messagebox.showinfo("Info", "Prepared data saved as JSON files.")
+
+#Function to load the fully merged and reshaped data from seperate files so you don't have to 
+#go through the whole process of cleaning, merging, loading etc from the csv every time if you have
+#a prepared dataset.
+
+    """def load_large_json(filename):
+    #Loads a large JSON array file and returns a concatenated DataFrame
+    # Load the file as a JSON array (no need for chunksize)
+    data = pd.read_json(filename, orient="records", lines=False)
+    print(f"Loaded {len(data)} records from {filename}")
+    return data"""
+
+    # MAYBE HERE I WILL COEM BACK TO IT
+def load_large_json(filename, chunk_size=1000):
+
+    def json_chunk_generator(file_obj, chunk_size):
+        buffer = []
+        in_array = False
+        for line in file_obj:
+            line = line.strip()
+            
+            # Skip empty lines
+            if not line:
+                continue
+                
+            # Handle start of array
+            if line == '[':
+                in_array = True
+                continue
+            # Handle end of array
+            elif line == ']':
+                if buffer:
+                    yield '[' + ','.join(buffer) + ']'
+                break
+                
+            # Handle regular lines
+            if in_array:
+                # Remove trailing comma if present
+                if line.endswith(','):
+                    line = line[:-1]
+                buffer.append(line)
+                
+                if len(buffer) >= chunk_size:
+                    yield '[' + ','.join(buffer) + ']'
+                    buffer = []
+    
+    data_chunks = []
+    try:
+        with open(filename, 'r') as f:
+            for chunk_json in json_chunk_generator(f, chunk_size):
+                try:
+                    chunk_df = pd.read_json(chunk_json, orient='records')
+                    data_chunks.append(chunk_df)
+                    print(f"Loaded chunk with {len(chunk_df)} records from {filename}")
+                except ValueError as e:
+                    print(f"Error processing chunk: {e}")
+                    continue
+                    
+        if not data_chunks:
+            raise ValueError("No valid data chunks were loaded")
+            
+        result = pd.concat(data_chunks, ignore_index=True)
+        print(f"Successfully loaded total of {len(result)} records from {filename}")
+        return result
+        
+    except Exception as e:
+        print(f"Error loading file {filename}: {str(e)}")
+        raise
+
+def load_prepared_data():
+    global fully_merged_dataset, reshaped_data
+    try:
+        messagebox.showinfo("Info", "This process will take a VERY LONG TIME - Please wait up to 20 mins")
+        
+        # Load the fully merged dataset with a larger chunk size
+        print("Loading fully merged dataset...")
+        fully_merged_dataset = load_large_json("fully_merged_dataset.json", chunk_size=500)
+        
+        # Load the reshaped data with a smaller chunk size since it might be wider
+        print("Loading reshaped data...")
+        reshaped_data = load_large_json("reshaped_data.json", chunk_size=100)
+        
+        messagebox.showinfo("Info", "Prepared data loaded successfully.")
+        
+    except Exception as e:
+        messagebox.showerror("Error", f"Error loading prepared data: {str(e)}")
+        print(f"Detailed error: {str(e)}")
+"""def load_large_json(filename, chunk_size=1000):
+    
+    data_chunks = []
+    with open(filename, 'r') as f:
+        # Remove the starting and ending brackets to treat it as a lines JSON
+        next(f)  # Skip the initial "["
+        for chunk in pd.read_json(f, orient="records", lines=True, chunksize=chunk_size):
+            data_chunks.append(chunk)
+            print(f"Loaded chunk with {len(chunk)} records from {filename}")
+    return pd.concat(data_chunks, ignore_index=True)
+
+def load_prepared_data():
+    global fully_merged_dataset, reshaped_data
+    file_paths = filedialog.askopenfilenames(title="Select JSON files", filetypes=[("JSON files", "*.json")])
+    if len(file_paths) != 2:
+        messagebox.showerror("Error", "Please select exactly two JSON files.")
+        return
+    messagebox.showinfo("Info", "This process will take a VERY LONG TIME - Please wait up to 20 mins")
+    try:
+        fully_merged_dataset = load_large_json("fully_merged_dataset.json")
+        reshaped_data = load_large_json("reshaped_data.json", chunk_size=10)
+        messagebox.showinfo("Info", "Prepared data loaded successfully.")
+    except FileNotFoundError:
+        messagebox.showerror("Error", "Prepared data files not found.")"""
+
+#Task 6
 def output_statistics():
     """
     Output monthly and semester-level statistics for key components.
@@ -120,6 +298,7 @@ def output_statistics():
     # Get columns that contain component-month pairs
     relevant_columns = [col for col in manipulated_data.columns if any(comp in col for comp in components_of_interest)]
 
+    #Task 6a
     # Monthly statistics (September, October, November, December)
     monthly_statistics = {}
     for month in ['09', '10', '11', '12']:
@@ -142,6 +321,7 @@ def output_statistics():
         else:
             monthly_statistics[month]['Mode'] = 'No mode'  # Handle the case where there's no mode
 
+    #Task 6b
     # Semester statistics (September to December combined)
     semester_statistics = {}
     for component in components_of_interest:
@@ -183,7 +363,8 @@ def output_statistics():
     # Display a message box to inform the user that statistics have been printed to the console
     messagebox.showinfo("Info", "Statistics have been printed to the console, please check.")
 
-def plot_component_interactions_separately():
+#Task 7 - the first part of the task, plotting the graphs
+def plot_bar_graphs():
     global reshaped_data
     
     if reshaped_data is None:
@@ -272,6 +453,7 @@ def plot_user_component_interactions():
     plt.ylabel("User_ID")
     plt.show()"""
 
+#Task 7 seond half, calculating and plotting correlation
 def plot_user_component_correlation():
     global reshaped_data
 
@@ -416,6 +598,9 @@ root.title("Data Processing GUI")
 load_clean_button = tk.Button(root, text="Load and Clean Data", command=data_load_from_csv_to_json_and_clean)
 load_clean_button.pack(pady=10)
 
+save_cleaned_data_button = tk.Button(root, text="Save cleaned CSV data to JSON", command=save_cleaned_data)
+save_cleaned_data_button.pack(pady=10)
+
 # Create buttons for each step
 remove_and_rename_button = tk.Button(root, text="Remove and rename", command=remove_and_rename)
 remove_and_rename_button.pack(pady=10)
@@ -426,10 +611,20 @@ merge_button.pack(pady=10)
 reshape_button = tk.Button(root, text="Reshape Data", command=reshape_data)
 reshape_button.pack(pady=10)
 
+# Create buttons for each step
+save_prepared_data_button = tk.Button(root, text="save cleaned and prepared data to JSON", 
+                                      command=save_prepared_data)
+save_prepared_data_button.pack(pady=10)
+
+# Create buttons for each step
+load_JSON_prepared_data_button = tk.Button(root, text="Load both merged data and reshaped data from JSOn", 
+                                           command=load_prepared_data)
+load_JSON_prepared_data_button.pack(pady=10)
+
 output_stats_button = tk.Button(root, text="Output Statistics", command=output_statistics)
 output_stats_button.pack(pady=10)
 
-plot_button_separate = tk.Button(root, text="Plot Component Interactions Separately", command=plot_component_interactions_separately)
+plot_button_separate = tk.Button(root, text="Plot Component Interactions Separately", command=plot_bar_graphs)
 plot_button_separate.pack(pady=10)
 
 plot_button_heatmap = tk.Button(root, text="Plot User-Component Interactions", command=plot_user_component_correlation)
